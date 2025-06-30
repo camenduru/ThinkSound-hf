@@ -32,6 +32,7 @@ import gradio as gr
 import tempfile
 import subprocess
 from huggingface_hub import hf_hub_download
+from moviepy.editor import VideoFileClip
 
 _CLIP_SIZE = 224
 _CLIP_FPS = 8.0
@@ -62,7 +63,7 @@ class VGGSound(Dataset):
         self,
         sample_rate: int = 44_100,
         duration_sec: float = 9.0,
-        audio_samples: Optional[int] = 397312,
+        audio_samples: int = None,
         normalize_audio: bool = False,
     ):
         if audio_samples is None:
@@ -182,8 +183,8 @@ else:
     device = 'cpu'
     extra_device = 'cpu'
 
-vae_ckpt = hf_hub_download(repo_id="UncleWang233/occdata", filename="epoch=3-step=100000.ckpt",repo_type="dataset")
-synchformer_ckpt = hf_hub_download(repo_id="UncleWang233/occdata", filename="synchformer_state_dict.pth",repo_type="dataset")
+vae_ckpt = hf_hub_download(repo_id="liuhuadai/ThinkSound", filename="epoch=3-step=100000.ckpt",repo_type="model")
+synchformer_ckpt = hf_hub_download(repo_id="liuhuadai/ThinkSound", filename="synchformer_state_dict.pth",repo_type="model")
 feature_extractor = FeaturesUtils(
     vae_ckpt=vae_ckpt,
     vae_config='think_sound/configs/model_configs/autoencoders/stable_audio_2_0_vae.json',
@@ -191,7 +192,7 @@ feature_extractor = FeaturesUtils(
     synchformer_ckpt=synchformer_ckpt
 ).eval().to(extra_device)
 
-preprocesser = VGGSound()
+
 
 args = get_all_args()
 
@@ -224,7 +225,7 @@ model.pretransform.load_state_dict(load_vae_state)
 # Remove weight_norm from the pretransform if specified
 if args.remove_pretransform_weight_norm == "post_load":
     remove_weight_norm_from_model(model.pretransform)
-ckpt_path = hf_hub_download(repo_id="UncleWang233/occdata", filename="epoch=10-step=68000.ckpt",repo_type="dataset")
+ckpt_path = hf_hub_download(repo_id="liuhuadai/ThinkSound", filename="epoch=10-step=68000.ckpt",repo_type="model")
 training_wrapper = create_training_wrapper_from_config(model_config, model)
 # 加载模型权重时根据设备选择map_location
 if device == 'cuda':
@@ -232,12 +233,22 @@ if device == 'cuda':
 else:
     training_wrapper.load_state_dict(torch.load(ckpt_path, map_location=torch.device('cpu'))['state_dict'])
 
+def get_video_duration(video_path):
+    video = VideoFileClip(video_path)
+    return video.duration
+
 def get_audio(video_path, caption):
     # 允许caption为空
     if caption is None:
         caption = ''
     timer = Timer(duration="00:15:00:00")
+    #get video duration
+    duration_sec = get_video_duration(video_path)
+    print(duration_sec)
+    preprocesser = VGGSound(duration_sec=duration_sec)
     data = preprocesser.sample(video_path, caption)
+
+
 
     preprocessed_data = {}
     metaclip_global_text_features, metaclip_text_features = feature_extractor.encode_text(data['caption'])
@@ -253,11 +264,17 @@ def get_audio(video_path, caption):
     sync_features = feature_extractor.encode_video_with_sync(data['sync_video'].unsqueeze(0).to(extra_device))
     preprocessed_data['sync_features'] = sync_features.detach().cpu().squeeze(0)
     preprocessed_data['video_exist'] = torch.tensor(True)
+    print("clip_shape", preprocessed_data['metaclip_features'].shape)
+    print("sync_shape", preprocessed_data['sync_features'].shape)
+    sync_seq_len = preprocessed_data['sync_features'].shape[0]
+    clip_seq_len = preprocessed_data['metaclip_features'].shape[0]
+    latent_seq_len = (int)(194/9*duration_sec)
+    training_wrapper.diffusion.model.model.update_seq_lengths(latent_seq_len, clip_seq_len, sync_seq_len)
 
     metadata = [preprocessed_data]
 
     batch_size = 1
-    length = 194
+    length = latent_seq_len
     with torch.amp.autocast(device):
         conditioning = training_wrapper.diffusion.conditioner(metadata, training_wrapper.device)
     
@@ -288,6 +305,7 @@ def get_audio(video_path, caption):
         audio_path = tmp_audio.name
     return audio_path
 
+get_audio("./examples/3_mute.mp4", "Axe striking")
 # 合成新视频：用ffmpeg将音频与原视频合成
 
 def synthesize_video_with_audio(video_file, caption):

@@ -185,6 +185,8 @@ else:
     device = 'cpu'
     extra_device = 'cpu'
 
+print(f"load in device {device}")
+
 vae_ckpt = hf_hub_download(repo_id="liuhuadai/ThinkSound", filename="vae.ckpt",repo_type="model")
 synchformer_ckpt = hf_hub_download(repo_id="liuhuadai/ThinkSound", filename="synchformer_state_dict.pth",repo_type="model")
 feature_extractor = FeaturesUtils(

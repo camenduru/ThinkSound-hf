@@ -183,7 +183,7 @@ else:
     device = 'cpu'
     extra_device = 'cpu'
 
-vae_ckpt = hf_hub_download(repo_id="liuhuadai/ThinkSound", filename="epoch=3-step=100000.ckpt",repo_type="model")
+vae_ckpt = hf_hub_download(repo_id="liuhuadai/ThinkSound", filename="vae.ckpt",repo_type="model")
 synchformer_ckpt = hf_hub_download(repo_id="liuhuadai/ThinkSound", filename="synchformer_state_dict.pth",repo_type="model")
 feature_extractor = FeaturesUtils(
     vae_ckpt=vae_ckpt,
@@ -225,7 +225,7 @@ model.pretransform.load_state_dict(load_vae_state)
 # Remove weight_norm from the pretransform if specified
 if args.remove_pretransform_weight_norm == "post_load":
     remove_weight_norm_from_model(model.pretransform)
-ckpt_path = hf_hub_download(repo_id="liuhuadai/ThinkSound", filename="epoch=10-step=68000.ckpt",repo_type="model")
+ckpt_path = hf_hub_download(repo_id="liuhuadai/ThinkSound", filename="thinksound.ckpt",repo_type="model")
 training_wrapper = create_training_wrapper_from_config(model_config, model)
 # 加载模型权重时根据设备选择map_location
 if device == 'cuda':

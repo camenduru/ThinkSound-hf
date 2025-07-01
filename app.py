@@ -339,21 +339,6 @@ Upload video and caption (optional), and get video with audio!
 [Project page is here](https://huggingface.co/spaces/FunAudioLLM/ThinkSound)  
 [Model weights is here](https://huggingface.co/liuhuadai/ThinkSound)
 
-## Citation
-
-If you find our work useful, please cite our paper: 
-
-```bibtex
-@misc{liu2025thinksoundchainofthoughtreasoningmultimodal,
-    title={ThinkSound: Chain-of-Thought Reasoning in Multimodal Large Language Models for Audio Generation and Editing}, 
-    author={Huadai Liu and Jialei Wang and Kaicheng Luo and Wen Wang and Qian Chen and Zhou Zhao and Wei Xue},
-    year={2025},
-    eprint={2506.21448},
-    archivePrefix={arXiv},
-    primaryClass={eess.AS},
-    url={https://arxiv.org/abs/2506.21448},   
-}
-```
 """
     )
     with gr.Row():

@@ -33,6 +33,7 @@ import tempfile
 import subprocess
 from huggingface_hub import hf_hub_download
 from moviepy.editor import VideoFileClip
+os.system("conda install -c conda-forge 'ffmpeg<7'")
 
 _CLIP_SIZE = 224
 _CLIP_FPS = 8.0

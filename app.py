@@ -336,9 +336,6 @@ ThinkSound is a unified Any2Audio generation framework with flow matching guided
 
 Upload video and caption (optional), and get video with audio!  
 
-[Project page is here](https://huggingface.co/spaces/FunAudioLLM/ThinkSound)  
-[Model weights is here](https://huggingface.co/liuhuadai/ThinkSound)
-
 """
     )
     with gr.Row():

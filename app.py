@@ -1,4 +1,5 @@
 from prefigure.prefigure import get_all_args, push_wandb_config
+import spaces
 import json
 import os
 os.environ["GRADIO_TEMP_DIR"] = "./.gradio_tmp"

@@ -241,7 +241,7 @@ def get_video_duration(video_path):
     video = VideoFileClip(video_path)
     return video.duration
 
-@spaces.GPU(duration=200)
+@spaces.GPU(duration=300)
 @torch.inference_mode()
 @torch.no_grad()
 def get_audio(video_path, caption):

@@ -238,6 +238,8 @@ def get_video_duration(video_path):
     video = VideoFileClip(video_path)
     return video.duration
 
+@spaces.GPU(duration=120)
+@torch.inference_mode()
 def get_audio(video_path, caption):
     # 允许caption为空
     if caption is None:
@@ -305,9 +307,6 @@ def get_audio(video_path, caption):
         torchaudio.save(tmp_audio.name, audios[0], 44100)
         audio_path = tmp_audio.name
     return audio_path
-
-get_audio("./examples/3_mute.mp4", "Axe striking")
-# 合成新视频：用ffmpeg将音频与原视频合成
 
 def synthesize_video_with_audio(video_file, caption):
     # 允许caption为空

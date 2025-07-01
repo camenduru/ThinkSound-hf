@@ -1,13 +1,9 @@
 ---
-title: Test
-emoji: 📚
-colorFrom: gray
-colorTo: gray
+title: ThinkSound -- Chain-of-Thought Reasoning in Multimodal Large Language Models for Audio Generation and Editing
+emoji: 🔊
+colorFrom: blue
+colorTo: indigo
 sdk: gradio
-sdk_version: 5.35.0
 app_file: app.py
 pinned: false
-license: mit
 ---
-
-Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference

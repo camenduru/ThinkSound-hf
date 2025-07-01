@@ -232,10 +232,7 @@ if args.remove_pretransform_weight_norm == "post_load":
 ckpt_path = hf_hub_download(repo_id="liuhuadai/ThinkSound", filename="thinksound.ckpt",repo_type="model")
 training_wrapper = create_training_wrapper_from_config(model_config, model)
 # 加载模型权重时根据设备选择map_location
-if device == 'cuda':
-    training_wrapper.load_state_dict(torch.load(ckpt_path)['state_dict'])
-else:
-    training_wrapper.load_state_dict(torch.load(ckpt_path, map_location=torch.device('cpu'))['state_dict'])
+training_wrapper.load_state_dict(torch.load(ckpt_path)['state_dict']).to("cuda")
 
 def get_video_duration(video_path):
     video = VideoFileClip(video_path)
@@ -340,14 +337,14 @@ with gr.Blocks() as demo:
 
     gr.Examples(
         examples=[
-            ["./examples/1_mute.mp4", "Playing Trumpet"],
-            ["./examples/2_mute.mp4", "Axe striking"],
-            ["./examples/3_mute.mp4", "Gentle Sucking Sounds From the Pacifier"],
-            ["./examples/4_mute.mp4", "train passing by"],
-            ["./examples/5_mute.mp4", "Lighting Firecrackers"]
+            ["./examples/1_mute.mp4", "Playing Trumpet", "./examples/1.mp4"],
+            ["./examples/2_mute.mp4", "Axe striking", "./examples/2.mp4"],
+            ["./examples/3_mute.mp4", "Gentle Sucking Sounds From the Pacifier", "./examples/3.mp4"],
+            ["./examples/4_mute.mp4", "train passing by", "./examples/4.mp4"],
+            ["./examples/5_mute.mp4", "Lighting Firecrackers", "./examples/5.mp4"]
         ],
-        inputs=[video_input, caption_input],
+        inputs=[video_input, caption_input,output_video],
     )
-
+    
 demo.launch(share=True)
 

@@ -1,6 +1,5 @@
 ---
 title: ThinkSound -- Chain-of-Thought Reasoning in Multimodal Large Language Models for Audio Generation and Editing
-python_version: 3.10.0
 emoji: 🔊
 colorFrom: blue
 colorTo: indigo

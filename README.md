@@ -3,7 +3,6 @@ title: ThinkSound -- Chain-of-Thought Reasoning in Multimodal Large Language Mod
 emoji: 🔊
 colorFrom: blue
 colorTo: indigo
-python_version: 3.10.0
 sdk: gradio
 sdk_version: 5.35.0
 app_file: app.py

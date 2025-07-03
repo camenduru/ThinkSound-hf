@@ -7,9 +7,9 @@ import torch.nn.functional as F
 from einops import rearrange
 from open_clip import create_model_from_pretrained
 from torchvision.transforms import Normalize
-from think_sound.models.factory import create_model_from_config
-from think_sound.models.utils import load_ckpt_state_dict
-from think_sound.training.utils import copy_state_dict
+from ThinkSound.models.factory import create_model_from_config
+from ThinkSound.models.utils import load_ckpt_state_dict
+from ThinkSound.training.utils import copy_state_dict
 from transformers import AutoModel
 from transformers import AutoProcessor
 from transformers import T5EncoderModel, AutoTokenizer

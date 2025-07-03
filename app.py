@@ -14,13 +14,12 @@ from lightning.pytorch.tuner import Tuner
 from lightning.pytorch import seed_everything
 import random
 from datetime import datetime
-# from think_sound.data.dataset import create_dataloader_from_config
-from think_sound.data.datamodule import DataModule
-from think_sound.models import create_model_from_config
-from think_sound.models.utils import load_ckpt_state_dict, remove_weight_norm_from_model
-from think_sound.training import create_training_wrapper_from_config, create_demo_callback_from_config
-from think_sound.training.utils import copy_state_dict
-from think_sound.inference.sampling import get_alphas_sigmas, sample, sample_discrete_euler
+from ThinkSound.data.datamodule import DataModule
+from ThinkSound.models import create_model_from_config
+from ThinkSound.models.utils import load_ckpt_state_dict, remove_weight_norm_from_model
+from ThinkSound.training import create_training_wrapper_from_config, create_demo_callback_from_config
+from ThinkSound.training.utils import copy_state_dict
+from ThinkSound.inference.sampling import get_alphas_sigmas, sample, sample_discrete_euler
 from data_utils.v2a_utils.feature_utils_224 import FeaturesUtils
 from torch.utils.data import Dataset
 from typing import Optional, Union
@@ -34,7 +33,7 @@ import tempfile
 import subprocess
 from huggingface_hub import hf_hub_download
 from moviepy.editor import VideoFileClip
-os.system("conda install -c conda-forge 'ffmpeg<7'")
+# os.system("conda install -c conda-forge 'ffmpeg<7'")
 
 _CLIP_SIZE = 224
 _CLIP_FPS = 8.0
@@ -101,7 +100,7 @@ class VGGSound(Dataset):
 
         self.resampler = {}
 
-    def sample(self, video_path,label):
+    def sample(self, video_path,label,cot):
         video_id = video_path
 
         reader = StreamingMediaDecoder(video_path)
@@ -156,7 +155,7 @@ class VGGSound(Dataset):
             # padding using the last frame, but no more than 2
             current_length = sync_chunk.shape[0]
             last_frame = sync_chunk[-1]
-            # 重复最后一帧以进行填充
+
             padding = last_frame.repeat(self.sync_expected_length - current_length, 1, 1, 1)
             assert self.sync_expected_length - current_length < 12, f'sync can pad no more than 2 while {self.sync_expected_length - current_length}'
             sync_chunk = torch.cat((sync_chunk, padding), dim=0)
@@ -170,6 +169,7 @@ class VGGSound(Dataset):
         data = {
             'id': video_id,
             'caption': label,
+            'caption_cot': cot,
             # 'audio': audio_chunk,
             'clip_video': clip_chunk,
             'sync_video': sync_chunk,
@@ -187,16 +187,15 @@ else:
 
 print(f"load in device {device}")
 
-vae_ckpt = hf_hub_download(repo_id="liuhuadai/ThinkSound", filename="vae.ckpt",repo_type="model")
-synchformer_ckpt = hf_hub_download(repo_id="liuhuadai/ThinkSound", filename="synchformer_state_dict.pth",repo_type="model")
+vae_ckpt = hf_hub_download(repo_id="FunAudioLLM/ThinkSound", filename="vae.ckpt",repo_type="model")
+synchformer_ckpt = hf_hub_download(repo_id="FunAudioLLM/ThinkSound", filename="synchformer_state_dict.pth",repo_type="model")
+
 feature_extractor = FeaturesUtils(
-    vae_ckpt=vae_ckpt,
-    vae_config='think_sound/configs/model_configs/autoencoders/stable_audio_2_0_vae.json',
+    vae_ckpt=None,
+    vae_config='ThinkSound/configs/model_configs/stable_audio_2_0_vae.json',
     enable_conditions=True,
     synchformer_ckpt=synchformer_ckpt
 ).eval().to(extra_device)
-
-
 
 args = get_all_args()
 
@@ -206,7 +205,7 @@ seed_everything(seed, workers=True)
 
 
 #Get JSON config from args.model_config
-with open("think_sound/configs/model_configs/vt2audio/latent_clip_224_text_sync_mmdit_flow_logit_t5_kernel_size3.json") as f:
+with open("ThinkSound/configs/model_configs/thinksound.json") as f:
     model_config = json.load(f)
 
 model = create_model_from_config(model_config)
@@ -229,7 +228,7 @@ model.pretransform.load_state_dict(load_vae_state)
 # Remove weight_norm from the pretransform if specified
 if args.remove_pretransform_weight_norm == "post_load":
     remove_weight_norm_from_model(model.pretransform)
-ckpt_path = hf_hub_download(repo_id="liuhuadai/ThinkSound", filename="thinksound.ckpt",repo_type="model")
+ckpt_path = hf_hub_download(repo_id="FunAudioLLM/ThinkSound", filename="thinksound.ckpt",repo_type="model")
 training_wrapper = create_training_wrapper_from_config(model_config, model)
 # 加载模型权重时根据设备选择map_location
 training_wrapper.load_state_dict(torch.load(ckpt_path)['state_dict'])
@@ -243,16 +242,17 @@ def get_video_duration(video_path):
 @spaces.GPU(duration=60)
 @torch.inference_mode()
 @torch.no_grad()
-def get_audio(video_path, caption):
-    # 允许caption为空
+def get_audio(video_path, caption, cot):
     if caption is None:
         caption = ''
+    if cot is None:
+        cot = caption
     timer = Timer(duration="00:15:00:00")
     #get video duration
     duration_sec = get_video_duration(video_path)
     print(duration_sec)
     preprocesser = VGGSound(duration_sec=duration_sec)
-    data = preprocesser.sample(video_path, caption)
+    data = preprocesser.sample(video_path, caption, cot)
 
 
 
@@ -261,7 +261,7 @@ def get_audio(video_path, caption):
     preprocessed_data['metaclip_global_text_features'] = metaclip_global_text_features.detach().cpu().squeeze(0)
     preprocessed_data['metaclip_text_features'] = metaclip_text_features.detach().cpu().squeeze(0)
 
-    t5_features = feature_extractor.encode_t5_text(data['caption'])
+    t5_features = feature_extractor.encode_t5_text(data['caption_cot'])
     preprocessed_data['t5_features'] = t5_features.detach().cpu().squeeze(0)
 
     clip_features = feature_extractor.encode_video_with_clip(data['clip_video'].unsqueeze(0).to(extra_device))
@@ -305,56 +305,47 @@ def get_audio(video_path, caption):
             fakes = training_wrapper.diffusion.pretransform.decode(fakes)
 
     audios = fakes.to(torch.float32).div(torch.max(torch.abs(fakes))).clamp(-1, 1).mul(32767).to(torch.int16).cpu()
-    # 保存临时音频文件
     with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp_audio:
         torchaudio.save(tmp_audio.name, audios[0], 44100)
         audio_path = tmp_audio.name
+
     return audio_path
 
-def synthesize_video_with_audio(video_file, caption):
-    # 允许caption为空
-    if caption is None:
-        caption = ''
-    audio_path = get_audio(video_file, caption)
+def synthesize_video_with_audio(video_file, caption, cot):
+    audio_path = get_audio(video_file, caption, cot)
     with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False) as tmp_video:
         output_video_path = tmp_video.name
-    # ffmpeg命令：用新音频替换原视频音轨
+
     cmd = [
         'ffmpeg', '-y', '-i', video_file, '-i', audio_path,
         '-c:v', 'copy', '-map', '0:v:0', '-map', '1:a:0',
         '-shortest', output_video_path
     ]
     subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
     return output_video_path
 
-# Gradio界面
-with gr.Blocks() as demo:
-    gr.Markdown(
-        """
-# ThinkSound\n
-ThinkSound is a unified Any2Audio generation framework with flow matching guided by Chain-of-Thought (CoT) reasoning.
+demo = gr.Interface(
+    fn=synthesize_video_with_audio,
+    inputs=[
+        gr.Video(label="Upload Video"),
+        gr.Textbox(label="Caption (optional)", placeholder="can be empty",),
+        gr.Textbox(label="CoT Description (optional)", lines=6, placeholder="can be empty",),
+    ],
+    outputs=[
+        gr.Video(label="Result"),
+    ],
+    title="ThinkSound Demo",
+    description="Upload a video, caption, or CoT to generate audio. For an enhanced experience, we automatically merge the generated audio with your original silent video. (Note: Flexible audio generation lengths are supported.:)",
+    examples=[
+        ["examples/3_mute.mp4", "Gentle Sucking Sounds From the Pacifier", "Begin by creating a soft, steady background of light pacifier suckling. Add subtle, breathy rhythms to mimic a newborn's gentle mouth movements. Keep the sound smooth, natural, and soothing."],
+        ["examples/2_mute.mp4", "Printer Printing", "Generate a continuous printer printing sound with periodic beeps and paper movement, plus a cat pawing at the machine. Add subtle ambient room noise for authenticity, keeping the focus on printing, beeps, and the cat's interaction."],
+        ["examples/4_mute.mp4", "Plastic Debris Handling", "Begin with the sound of hands scooping up loose plastic debris, followed by the subtle cascading noise as the pieces fall and scatter back down. Include soft crinkling and rustling to emphasize the texture of the plastic. Add ambient factory background noise with distant machinery to create an industrial atmosphere."],
+        ["examples/5_mute.mp4", "Lighting Firecrackers", "Generate the sound of firecrackers lighting and exploding repeatedly on the ground, followed by fireworks bursting in the sky. Incorporate occasional subtle echoes to mimic an outdoor night ambiance, with no human voices present."]
+    ],
+    cache_examples=True
+)
 
-Upload video and caption (optional), and get video with audio!  
-
-"""
-    )
-    with gr.Row():
-        video_input = gr.Video(label="upload video")
-        caption_input = gr.Textbox(label="caption(optional)", placeholder="can be empty", lines=1)
-    output_video = gr.Video(label="output video")
-    btn = gr.Button("start synthesize")
-    btn.click(fn=synthesize_video_with_audio, inputs=[video_input, caption_input], outputs=output_video)
-
-    gr.Examples(
-        examples=[
-            ["./examples/1_mute.mp4", "Playing Trumpet", "./examples/1.mp4"],
-            ["./examples/2_mute.mp4", "Axe striking", "./examples/2.mp4"],
-            ["./examples/3_mute.mp4", "Gentle Sucking Sounds From the Pacifier", "./examples/3.mp4"],
-            ["./examples/4_mute.mp4", "train passing by", "./examples/4.mp4"],
-            ["./examples/5_mute.mp4", "Lighting Firecrackers", "./examples/5.mp4"]
-        ],
-        inputs=[video_input, caption_input,output_video],
-    )
-    
-demo.launch(share=True)
+if __name__ == "__main__":
+    demo.launch(share=True)
 

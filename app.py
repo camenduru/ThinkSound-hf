@@ -243,7 +243,6 @@ def get_video_duration(video_path):
 @torch.inference_mode()
 @torch.no_grad()
 def synthesize_video_with_audio(video_file, caption, cot):
-    audio_path = get_audio(video_file, caption, cot)
     video_path = video_file
     if caption is None:
         caption = ''
@@ -291,6 +290,7 @@ def synthesize_video_with_audio(video_file, caption, cot):
     conditioning['sync_features'][~video_exist] = training_wrapper.diffusion.model.model.empty_sync_feat
 
     yield "⏳ Inferring…", None
+
     cond_inputs = training_wrapper.diffusion.get_conditioning_inputs(conditioning)
     noise = torch.randn([batch_size, training_wrapper.diffusion.io_channels, length]).to(training_wrapper.device)
     with torch.amp.autocast(device):
@@ -308,7 +308,6 @@ def synthesize_video_with_audio(video_file, caption, cot):
             fakes = training_wrapper.diffusion.pretransform.decode(fakes)
 
     audios = fakes.to(torch.float32).div(torch.max(torch.abs(fakes))).clamp(-1, 1).mul(32767).to(torch.int16).cpu()
-
     with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp_audio:
         torchaudio.save(tmp_audio.name, audios[0], 44100)
         audio_path = tmp_audio.name
@@ -326,36 +325,32 @@ def synthesize_video_with_audio(video_file, caption, cot):
     # return output_video_path
     yield "✅ Generation completed!", output_video_path
 
-# Gradio界面
-with gr.Blocks() as demo:
-    gr.Markdown(
-        """
-# ThinkSound\n
-ThinkSound is a unified Any2Audio generation framework with flow matching guided by Chain-of-Thought (CoT) reasoning.
+demo = gr.Interface(
+    fn=synthesize_video_with_audio,
+    inputs=[
+        gr.Video(label="Upload Video"),
+        gr.Textbox(label="Caption (optional)", placeholder="can be empty",),
+        gr.Textbox(label="CoT Description (optional)", lines=6, placeholder="can be empty",),
+    ],
+    outputs=[
+        gr.Text(label="Status"),
+        gr.Video(label="Result"),
+    ],
+    title="ThinkSound Demo",
+    description="Upload a video, caption, or CoT to generate audio. For an enhanced experience, we automatically merge the generated audio with your original silent video. (Note: Flexible audio generation lengths are supported.:)",
+    examples=[
+        ["examples/1_mute.mp4", "Playing Trumpet","Generate a continuous trumpet sound with melodic variations, mimicking the sound of a person playing the trumpet ideally in a musical setting, ensuring clarity and realistic tone. Avoid extraneous noise or background sounds to reflect the focus on trumpet playing. The audio should resemble a skilled player producing expressive, melodious trumpet notes. Pay attention to pitch changes caused by hand movements."],
+        ["examples/2_mute.mp4", "Printer Printing", "Generate a continuous printer printing sound with periodic beeps and paper movement, plus a cat pawing at the machine. Add subtle ambient room noise for authenticity, keeping the focus on printing, beeps, and the cat's interaction."],
+        ["examples/3_mute.mp4", "Gentle Sucking Sounds From the Pacifier", "Begin by creating a soft, steady background of light pacifier suckling. Add subtle, breathy rhythms to mimic a newborn's gentle mouth movements. Keep the sound smooth, natural, and soothing."],
+        ["examples/4_mute.mp4", "Plastic Debris Handling", "Begin with the sound of hands scooping up loose plastic debris, followed by the subtle cascading noise as the pieces fall and scatter back down. Include soft crinkling and rustling to emphasize the texture of the plastic. Add ambient factory background noise with distant machinery to create an industrial atmosphere."],
+        ["examples/5_mute.mp4", "Lighting Firecrackers", "Generate the sound of firecrackers lighting and exploding repeatedly on the ground, followed by fireworks bursting in the sky. Incorporate occasional subtle echoes to mimic an outdoor night ambiance, with no human voices present."]
+    ],
+    cache_examples=True
+)
 
-Upload video and caption (optional), and get video with audio!  
+if __name__ == "__main__":
+    demo.queue().launch(share=True)
 
-"""
-    )
-    with gr.Row():
-        video_input = gr.Video(label="upload video")
-        with gr.Column():
-            caption_input = gr.Textbox(label="caption(optional)", placeholder="can be empty", lines=1)
-            cot_input = gr.Textbox(label="CoT Description (optional)", placeholder="can be empty", lines=6)
-    output_video = gr.Video(label="output video")
-    btn = gr.Button("start synthesize")
-    btn.click(fn=synthesize_video_with_audio, inputs=[video_input, caption_input, cot_input], outputs=output_video)
-
-    gr.Examples(
-        examples=[
-            ["./examples/3_mute.mp4", "Gentle Sucking Sounds From the Pacifier", "Begin by creating a soft, steady background of light pacifier suckling. Add subtle, breathy rhythms to mimic a newborn's gentle mouth movements. Keep the sound smooth, natural, and soothing.","./examples/3.mp4"],
-            ["./examples/2_mute.mp4", "Printer Printing", "Generate a continuous printer printing sound with periodic beeps and paper movement, plus a cat pawing at the machine. Add subtle ambient room noise for authenticity, keeping the focus on printing, beeps, and the cat's interaction.", "./examples/2.mp4"],
-            ["./examples/5_mute.mp4", "Lighting Firecrackers", "Generate the sound of firecrackers lighting and exploding repeatedly on the ground, followed by fireworks bursting in the sky. Incorporate occasional subtle echoes to mimic an outdoor night ambiance, with no human voices present.","./examples/5.mp4"],
-            ["./examples/4_mute.mp4", "Plastic Debris Handling", "Begin with the sound of hands scooping up loose plastic debris, followed by the subtle cascading noise as the pieces fall and scatter back down. Include soft crinkling and rustling to emphasize the texture of the plastic. Add ambient factory background noise with distant machinery to create an industrial atmosphere.","./examples/4.mp4"]
-        ],
-        inputs=[video_input, caption_input, cot_input, output_video],
-    )
-    
 demo.launch(share=True)
 
 

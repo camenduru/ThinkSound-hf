@@ -243,6 +243,7 @@ def get_video_duration(video_path):
 @torch.inference_mode()
 @torch.no_grad()
 def synthesize_video_with_audio(video_file, caption, cot):
+    yield "⏳ Extracting Features…", None
     video_path = video_file
     if caption is None:
         caption = ''
@@ -255,7 +256,6 @@ def synthesize_video_with_audio(video_file, caption, cot):
     preprocesser = VGGSound(duration_sec=duration_sec)
     data = preprocesser.sample(video_path, caption, cot)
 
-    yield "⏳ Extracting Features…", None
 
     preprocessed_data = {}
     metaclip_global_text_features, metaclip_text_features = feature_extractor.encode_text(data['caption'])

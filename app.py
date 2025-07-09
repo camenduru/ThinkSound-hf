@@ -208,32 +208,28 @@ seed_everything(seed, workers=True)
 with open("ThinkSound/configs/model_configs/thinksound.json") as f:
     model_config = json.load(f)
 
-model = create_model_from_config(model_config)
-
+diffusion_model = create_model_from_config(model_config)
+ckpt_path = hf_hub_download(repo_id="FunAudioLLM/ThinkSound", filename="thinksound_light.ckpt",repo_type="model")
 ## speed by torch.compile
 if args.compile:
-    model = torch.compile(model)
+    diffusion_model = torch.compile(diffusion_model)
     
 if args.pretrained_ckpt_path:
-    copy_state_dict(model, load_ckpt_state_dict(args.pretrained_ckpt_path,prefix='diffusion.')) # autoencoder.  diffusion.
+    copy_state_dict(diffusion_model, load_ckpt_state_dict(args.pretrained_ckpt_path,prefix='diffusion.')) # autoencoder.  diffusion.
 
 if args.remove_pretransform_weight_norm == "pre_load":
-    remove_weight_norm_from_model(model.pretransform)
+    remove_weight_norm_from_model(diffusion_model.pretransform)
 
 
 load_vae_state = load_ckpt_state_dict(vae_ckpt, prefix='autoencoder.') 
 # new_state_dict = {k.replace("autoencoder.", ""): v for k, v in load_vae_state.items() if k.startswith("autoencoder.")}
-model.pretransform.load_state_dict(load_vae_state)
+diffusion_model.pretransform.load_state_dict(load_vae_state)
 
 # Remove weight_norm from the pretransform if specified
 if args.remove_pretransform_weight_norm == "post_load":
-    remove_weight_norm_from_model(model.pretransform)
-ckpt_path = hf_hub_download(repo_id="FunAudioLLM/ThinkSound", filename="thinksound.ckpt",repo_type="model")
-training_wrapper = create_training_wrapper_from_config(model_config, model)
-# 加载模型权重时根据设备选择map_location
-training_wrapper.load_state_dict(torch.load(ckpt_path)['state_dict'])
+    remove_weight_norm_from_model(diffusion_model.pretransform)
 
-training_wrapper.to("cuda")
+diffusion_model.to(device)
 
 def get_video_duration(video_path):
     video = VideoFileClip(video_path)
@@ -276,36 +272,36 @@ def synthesize_video_with_audio(video_file, caption, cot):
     sync_seq_len = preprocessed_data['sync_features'].shape[0]
     clip_seq_len = preprocessed_data['metaclip_features'].shape[0]
     latent_seq_len = (int)(194/9*duration_sec)
-    training_wrapper.diffusion.model.model.update_seq_lengths(latent_seq_len, clip_seq_len, sync_seq_len)
+    diffusion_model.model.model.update_seq_lengths(latent_seq_len, clip_seq_len, sync_seq_len)
 
     metadata = [preprocessed_data]
 
     batch_size = 1
     length = latent_seq_len
     with torch.amp.autocast(device):
-        conditioning = training_wrapper.diffusion.conditioner(metadata, training_wrapper.device)
+        conditioning = diffusion_model.conditioner(metadata, device)
     
     video_exist = torch.stack([item['video_exist'] for item in metadata],dim=0)
-    conditioning['metaclip_features'][~video_exist] = training_wrapper.diffusion.model.model.empty_clip_feat
-    conditioning['sync_features'][~video_exist] = training_wrapper.diffusion.model.model.empty_sync_feat
+    conditioning['metaclip_features'][~video_exist] = diffusion_model.model.model.empty_clip_feat
+    conditioning['sync_features'][~video_exist] = diffusion_model.model.model.empty_sync_feat
 
     yield "⏳ Inferring…", None
 
-    cond_inputs = training_wrapper.diffusion.get_conditioning_inputs(conditioning)
-    noise = torch.randn([batch_size, training_wrapper.diffusion.io_channels, length]).to(training_wrapper.device)
+    cond_inputs = diffusion_model.get_conditioning_inputs(conditioning)
+    noise = torch.randn([batch_size, diffusion_model.io_channels, length]).to(device)
     with torch.amp.autocast(device):
-        model = training_wrapper.diffusion.model
-        if training_wrapper.diffusion_objective == "v":
+        model = diffusion_model.model
+        if diffusion_model.diffusion_objective == "v":
             fakes = sample(model, noise, 24, 0, **cond_inputs, cfg_scale=5, batch_cfg=True)
-        elif training_wrapper.diffusion_objective == "rectified_flow":
+        elif diffusion_model.diffusion_objective == "rectified_flow":
             import time
             start_time = time.time()
             fakes = sample_discrete_euler(model, noise, 24, **cond_inputs, cfg_scale=5, batch_cfg=True)
             end_time = time.time()
             execution_time = end_time - start_time
             print(f"执行时间: {execution_time:.2f} 秒")
-        if training_wrapper.diffusion.pretransform is not None:
-            fakes = training_wrapper.diffusion.pretransform.decode(fakes)
+        if diffusion_model.pretransform is not None:
+            fakes = diffusion_model.pretransform.decode(fakes)
 
     audios = fakes.to(torch.float32).div(torch.max(torch.abs(fakes))).clamp(-1, 1).mul(32767).to(torch.int16).cpu()
     with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp_audio:

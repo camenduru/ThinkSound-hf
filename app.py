@@ -1,5 +1,4 @@
 from prefigure.prefigure import get_all_args, push_wandb_config
-import spaces
 import json
 import os
 os.environ["GRADIO_TEMP_DIR"] = "./.gradio_tmp"
@@ -226,7 +225,6 @@ def get_video_duration(video_path):
     video = VideoFileClip(video_path)
     return video.duration
 
-@spaces.GPU(duration=60)
 @torch.inference_mode()
 @torch.no_grad()
 def synthesize_video_with_audio(video_file, caption, cot):
@@ -313,6 +311,7 @@ def synthesize_video_with_audio(video_file, caption, cot):
     yield "✅ Generation completed!", output_video_path
 
 demo = gr.Interface(
+    analytics_enabled=False,
     fn=synthesize_video_with_audio,
     inputs=[
         gr.Video(label="Upload Video"),
@@ -336,8 +335,6 @@ demo = gr.Interface(
 
 if __name__ == "__main__":
     demo.queue().launch(share=True)
-
-demo.launch(share=True)
 
 
 

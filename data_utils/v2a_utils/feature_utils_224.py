@@ -63,11 +63,11 @@ class FeaturesUtils(nn.Module):
         super().__init__()
 
         if enable_conditions:
-            self.clip_model = AutoModel.from_pretrained("facebook/metaclip-h14-fullcc2.5b")
+            self.clip_model = AutoModel.from_pretrained("/content/ThinkSound/ckpts/metaclip-h14-fullcc2.5b")
             self.clip_model = patch_clip(self.clip_model)
-            self.t5_tokenizer = AutoTokenizer.from_pretrained("google/t5-v1_1-xl")
-            self.t5_model = T5EncoderModel.from_pretrained("google/t5-v1_1-xl")
-            self.clip_processor = AutoProcessor.from_pretrained("facebook/metaclip-h14-fullcc2.5b")
+            self.t5_tokenizer = AutoTokenizer.from_pretrained("/content/ThinkSound/ckpts/t5-v1_1-xl")
+            self.t5_model = T5EncoderModel.from_pretrained("/content/ThinkSound/ckpts/t5-v1_1-xl")
+            self.clip_processor = AutoProcessor.from_pretrained("/content/ThinkSound/ckpts/metaclip-h14-fullcc2.5b")
             # self.clip_preprocess = Normalize(mean=[0.48145466, 0.4578275, 0.40821073],
             #                                  std=[0.26862954, 0.26130258, 0.27577711])
             self.synchformer = Synchformer()

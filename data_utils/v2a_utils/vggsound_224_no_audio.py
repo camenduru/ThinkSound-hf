@@ -141,7 +141,7 @@ class VGGSound(Dataset):
             v2.ToImage(),
             v2.ToDtype(torch.float32, scale=True),
         ])
-        self.clip_processor = AutoProcessor.from_pretrained("facebook/metaclip-h14-fullcc2.5b")
+        self.clip_processor = AutoProcessor.from_pretrained("/content/ThinkSound/ckpts/metaclip-h14-fullcc2.5b")
         self.sync_transform = v2.Compose([
             v2.Resize(_SYNC_SIZE, interpolation=v2.InterpolationMode.BICUBIC),
             v2.CenterCrop(_SYNC_SIZE),
